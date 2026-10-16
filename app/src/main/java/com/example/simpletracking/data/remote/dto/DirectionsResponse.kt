@@ -13,6 +13,7 @@ data class RouteDto(
     /** 0이면 성공. 그 외(예: 104 출발지-도착지 5m 이내)는 실패 */
     @SerialName("result_code") val resultCode: Int,
     @SerialName("result_msg") val resultMsg: String = "",
+    /** 길찾기에 실패하면(resultCode != 0) 내려오지 않는다. */
     val summary: RouteSummaryDto? = null,
     val sections: List<RouteSectionDto> = emptyList(),
 )
@@ -21,6 +22,13 @@ data class RouteDto(
 data class RouteSummaryDto(
     val distance: Int = 0,
     val duration: Int = 0,
+    val fare: CarFareDto? = null,
+)
+
+@Serializable
+data class CarFareDto(
+    val taxi: Int? = null,
+    val toll: Int? = null,
 )
 
 @Serializable

@@ -1,10 +1,10 @@
 package com.example.simpletracking.domain.usecase
 
-import com.example.simpletracking.domain.model.GeoPoint
-import com.example.simpletracking.domain.model.Place
-import com.example.simpletracking.domain.repository.PlaceRepository
+import com.example.simpletracking.domain.model.PlaceCategory
 import com.example.simpletracking.domain.result.AppResult
 import com.example.simpletracking.domain.result.DomainError
+import com.example.simpletracking.testutil.FakePlaceRepository
+import com.example.simpletracking.testutil.Fixtures
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -12,23 +12,14 @@ import org.junit.Test
 
 class SearchPlacesUseCaseTest {
 
-    /** mockito 대신 직접 만든 Fake. 인터페이스라서 가능하다(Repository를 인터페이스로 둔 이유 중 하나). */
-    private class FakePlaceRepository : PlaceRepository {
-        var lastQuery: String? = null
-        override suspend fun search(query: String, near: GeoPoint?): AppResult<List<Place>> {
-            lastQuery = query
-            return AppResult.Success(emptyList())
-        }
-    }
-
     private val repository = FakePlaceRepository()
     private val searchPlaces = SearchPlacesUseCase(repository)
 
     @Test
     fun `공백뿐인 검색어는 API를 호출하지 않고 EmptyQuery 에러`() = runTest {
-        val result = searchPlaces("   ", near = null)
-
-        assertEquals(AppResult.Error(DomainError.EmptyQuery), result)
+        listOf("", "   ", "\n\t").forEach { blank ->
+            assertEquals(AppResult.Error(DomainError.EmptyQuery), searchPlaces(blank, near = null))
+        }
         assertNull(repository.lastQuery)
     }
 
@@ -37,5 +28,14 @@ class SearchPlacesUseCaseTest {
         searchPlaces("  강남역   맛집 ", near = null)
 
         assertEquals("강남역 맛집", repository.lastQuery)
+    }
+
+    @Test
+    fun `카테고리 검색은 중심 좌표 반경 1km 안을 찾는다`() = runTest {
+        SearchPlacesByCategoryUseCase(repository)(PlaceCategory.CAFE, Fixtures.cityHall)
+
+        assertEquals(PlaceCategory.CAFE, repository.lastCategory)
+        assertEquals(Fixtures.cityHall, repository.lastCenter)
+        assertEquals(1_000, repository.lastRadius)
     }
 }

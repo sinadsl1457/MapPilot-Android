@@ -16,12 +16,13 @@ class SearchPlacesUseCase @Inject constructor(
 ) {
     /** operator fun invoke: searchPlaces("강남역")처럼 호출할 수 있다. Dart의 call()과 같다. */
     suspend operator fun invoke(query: String, near: GeoPoint?): AppResult<List<Place>> {
-        val normalized = query.trim().replace(WHITESPACES, " ")
+        val normalized = normalizeQuery(query)
         if (normalized.isEmpty()) return AppResult.Error(DomainError.EmptyQuery)
         return placeRepository.search(normalized, near)
     }
-
-    private companion object {
-        val WHITESPACES = Regex("\\s+")
-    }
 }
+
+private val WHITESPACES = Regex("\\s+")
+
+/** 앞뒤 공백을 지우고 연속된 공백을 하나로 줄인다. 검색과 최근 검색어가 같은 규칙을 쓴다. */
+fun normalizeQuery(query: String): String = query.trim().replace(WHITESPACES, " ")

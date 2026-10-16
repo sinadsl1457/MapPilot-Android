@@ -14,8 +14,9 @@ class FakeLocationRepository : LocationRepository {
     val locations = MutableSharedFlow<UserLocation>()
     var lastLocation: UserLocation? = null
     var failWith: DomainError? = null
+    var permissionGranted = true
 
-    override fun hasPermission(): Boolean = true
+    override fun hasPermission(): Boolean = permissionGranted
     override suspend fun getLastLocation(): UserLocation? = lastLocation
     override fun observeLocation(): Flow<UserLocation> =
         failWith?.let { error -> flow { throw DomainException(error) } } ?: locations

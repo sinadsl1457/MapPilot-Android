@@ -1,10 +1,67 @@
 <resources>
     <string name="app_name">심플맵</string>
 
-    <string name="action_open_settings">설정</string>
+    <string name="common_back">뒤로</string>
+    <string name="common_cancel">취소</string>
+
+    <!-- 지도 -->
+    <string name="map_missing_key">local.properties에 KAKAO_NATIVE_APP_KEY를 설정해주세요</string>
     <string name="error_map_load">지도를 불러오지 못했어요: %1$s</string>
     <string name="message_locating">현재 위치를 확인하는 중이에요</string>
+    <string name="my_location">내 위치</string>
+    <string name="my_location_hint_authorized">지도를 현재 위치로 이동합니다</string>
+    <string name="my_location_hint_unauthorized">위치 권한을 요청합니다</string>
 
+    <!-- 권한 -->
+    <string name="permission_dialog_title">위치 권한이 필요해요</string>
+    <string name="permission_dialog_message">설정에서 위치 접근을 허용하면 지도에 내 위치를 표시할 수 있어요</string>
+    <string name="action_open_settings">설정 열기</string>
+
+    <!-- 검색 -->
+    <string name="search_placeholder">장소, 주소 검색</string>
+    <string name="search_clear_results">검색 결과 지우기</string>
+    <string name="search_clear_text">입력 지우기</string>
+    <string name="search_results_count">%1$d곳</string>
+    <string name="search_results_empty">검색 결과가 없어요</string>
+    <string name="search_back_to_list">목록</string>
+    <string name="search_recent_title">최근 검색</string>
+    <string name="search_recent_clear_all">전체 삭제</string>
+    <string name="search_recent_empty">최근 검색 기록이 없어요</string>
+    <string name="search_recent_remove">%1$s 삭제</string>
+
+    <string name="category_restaurant">음식점</string>
+    <string name="category_cafe">카페</string>
+    <string name="category_convenience_store">편의점</string>
+    <string name="category_gas_station">주유소</string>
+    <string name="category_pharmacy">약국</string>
+    <string name="category_parking">주차장</string>
+
+    <!-- 길찾기 -->
+    <string name="route_start">길찾기</string>
+    <string name="route_close">길찾기 종료</string>
+    <string name="route_origin_my_location">내 위치</string>
+    <string name="route_marker_start">출발</string>
+    <string name="route_marker_end">도착</string>
+    <string name="route_loading">경로를 찾고 있어요</string>
+    <string name="route_unavailable">경로 없음</string>
+    <string name="route_arrival">%1$s 도착 예정</string>
+    <string name="route_fare">%1$s원</string>
+    <string name="route_fare_taxi">택시 약 %1$s원</string>
+    <string name="route_fare_toll">통행료 %1$s원</string>
+    <string name="route_transfers">환승 %1$d회</string>
+    <string name="route_transfers_none">환승 없음</string>
+    <string name="route_stops">%1$d개 정류장</string>
+    <string name="route_transit_count">경로 %1$d개</string>
+
+    <string name="travel_mode_transit">대중교통</string>
+    <string name="travel_mode_car">자동차</string>
+    <string name="travel_mode_walk">도보</string>
+
+    <string name="duration_minutes">%1$d분</string>
+    <string name="duration_hours">%1$d시간</string>
+    <string name="duration_hours_minutes">%1$d시간 %2$d분</string>
+
+    <!-- 에러 -->
     <string name="error_network">네트워크 연결을 확인해주세요</string>
     <string name="error_unauthorized">카카오 API 키 인증에 실패했어요</string>
     <string name="error_quota_exceeded">요청 한도를 초과했어요. 잠시 후 다시 시도해주세요</string>

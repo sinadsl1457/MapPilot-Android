@@ -29,4 +29,7 @@ suspend fun <T> safeApiCall(block: suspend () -> T): AppResult<T> =
         AppResult.Error(DomainError.Network)
     } catch (e: SerializationException) {
         AppResult.Error(DomainError.Unknown(e))
+    } catch (e: Exception) {
+        // 위에서 분류하지 못한 예외도 앱을 죽이지 않고 Unknown으로 넘긴다.
+        AppResult.Error(DomainError.Unknown(e))
     }

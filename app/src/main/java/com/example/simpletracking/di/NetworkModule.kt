@@ -3,6 +3,7 @@ package com.example.simpletracking.di
 import com.example.simpletracking.BuildConfig
 import com.example.simpletracking.data.remote.api.KakaoLocalApi
 import com.example.simpletracking.data.remote.api.KakaoNaviApi
+import com.example.simpletracking.data.remote.api.KakaoRoutingApi
 import com.example.simpletracking.data.remote.interceptor.KakaoAuthInterceptor
 import dagger.Module
 import dagger.Provides
@@ -72,6 +73,11 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideKakaoNaviApi(@KakaoNaviRetrofit retrofit: Retrofit): KakaoNaviApi = retrofit.create()
+
+    /** 도보·대중교통 경로는 로컬 API와 같은 dapi.kakao.com에 있다. */
+    @Provides
+    @Singleton
+    fun provideKakaoRoutingApi(@KakaoLocalRetrofit retrofit: Retrofit): KakaoRoutingApi = retrofit.create()
 
     // OkHttpClient 하나를 두 Retrofit이 공유한다 → 커넥션 풀·스레드 풀도 공유된다.
     private fun buildRetrofit(baseUrl: String, client: OkHttpClient, json: Json): Retrofit =
