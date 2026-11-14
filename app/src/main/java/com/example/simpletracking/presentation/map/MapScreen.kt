@@ -126,6 +126,8 @@ fun MapRoute(
 
     // 상태 → 지도(명령형) 반영
     LaunchedEffect(mapUi.myLocation) { mapState.updateMyLocation(mapUi.myLocation) }
+    // 따라가기 모드를 지도에 알린다. 카메라 추적은 SDK 트래킹이 한다.
+    LaunchedEffect(mapUi.followMode) { mapState.setFollowMode(mapUi.followMode) }
     val markers = remember(search.places) {
         search.places.mapIndexed { index, place -> PlaceMarker(place.id, place.location, number = index + 1) }
     }
@@ -140,6 +142,21 @@ fun MapRoute(
         mapState.onPlaceClick = searchViewModel::selectPlace
         onDispose { mapState.onPlaceClick = null }
     }
+    DisposableEffect(mapState, mapViewModel) {
+        mapState.onUserGesture = { gesture ->
+            when (gesture) {
+                MapGesture.PAN -> mapViewModel.onMapPanned()
+                MapGesture.ROTATE -> mapViewModel.onMapRotated()
+            }
+        }
+        onDispose { mapState.onUserGesture = null }
+    }
+
+    /** 내 위치가 아닌 곳(검색 결과, 경로)으로 카메라를 옮긴다. 따라가기를 먼저 꺼야 트래킹이 카메라를 내 위치로 되돌리지 않는다. */
+    fun cameraAwayFromMe(move: () -> Unit) {
+        mapViewModel.stopFollowing()
+        move()
+    }
 
     // 일회성 이펙트 처리(BlocListener). STARTED 이상일 때만 수집한다.
     LaunchedEffect(lifecycleOwner) {
@@ -152,7 +169,9 @@ fun MapRoute(
             launch {
                 mapViewModel.effects.collect { effect ->
                     when (effect) {
-                        is MapEffect.MoveCamera -> mapState.moveCamera(effect.target, effect.zoomLevel)
+                        // 내 위치(첫 위치, 내 위치 버튼)는 애니메이션 없이 바로 놓는다.
+                        // 멀리서 날아오면 어색하고, 긴 이동 애니메이션은 도중에 끊겨 엉뚱한 곳에 멈출 수 있다.
+                        is MapEffect.MoveCamera -> mapState.moveCamera(effect.target, effect.zoomLevel, animated = false)
                         is MapEffect.ShowError -> showMessage(resources.getString(effect.error.messageRes()))
                         is MapEffect.ShowMessage -> showMessage(resources.getString(effect.messageRes))
                         MapEffect.RequestLocationPermission -> permissionLauncher.launch(LOCATION_PERMISSIONS)
@@ -162,8 +181,8 @@ fun MapRoute(
             launch {
                 searchViewModel.effects.collect { effect ->
                     when (effect) {
-                        is PlaceSearchEffect.FitCamera -> mapState.fitCamera(effect.points, MapFitLayout.SEARCH_RESULTS)
-                        is PlaceSearchEffect.Focus -> mapState.moveCamera(effect.point, ZOOM_PLACE)
+                        is PlaceSearchEffect.FitCamera -> cameraAwayFromMe { mapState.fitCamera(effect.points, MapFitLayout.SEARCH_RESULTS) }
+                        is PlaceSearchEffect.Focus -> cameraAwayFromMe { mapState.moveCamera(effect.point, ZOOM_PLACE) }
                         is PlaceSearchEffect.ShowError -> showMessage(resources.getString(effect.error.messageRes()))
                     }
                 }
@@ -173,7 +192,9 @@ fun MapRoute(
                     when (effect) {
                         is RouteEffect.FitCamera -> {
                             val transit = routeViewModel.uiState.value.selectedMode == TravelMode.TRANSIT
-                            mapState.fitCamera(effect.points, if (transit) MapFitLayout.ROUTE_WITH_SHEET else MapFitLayout.ROUTE)
+                            cameraAwayFromMe {
+                                mapState.fitCamera(effect.points, if (transit) MapFitLayout.ROUTE_WITH_SHEET else MapFitLayout.ROUTE)
+                            }
                         }
                         is RouteEffect.ShowError -> showMessage(resources.getString(effect.error.messageRes()))
                         is RouteEffect.ShowMessage -> showMessage(resources.getString(effect.messageRes))
@@ -233,7 +254,7 @@ fun MapRoute(
             },
             onCloseRoute = {
                 routeViewModel.close()
-                search.selectedPlace?.let { mapState.moveCamera(it.location, ZOOM_PLACE) }
+                search.selectedPlace?.let { cameraAwayFromMe { mapState.moveCamera(it.location, ZOOM_PLACE) } }
             },
             onSelectMode = routeViewModel::selectMode,
             onSelectTransitRoute = routeViewModel::selectTransitRoute,
@@ -395,6 +416,8 @@ fun MapScreen(
 
         MyLocationButton(
             hasPermission = mapUi.hasLocationPermission,
+            followMode = mapUi.followMode,
+            isCameraOnMyLocation = mapUi.isCameraOnMyLocation,
             onClick = actions.onMyLocationClick,
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = floatingBottom),
         )

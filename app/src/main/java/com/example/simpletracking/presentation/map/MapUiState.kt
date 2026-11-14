@@ -12,4 +12,7 @@ data class MapUiState(
     val myLocation: UserLocation? = null,
     /** 권한이 "다시 묻지 않음"으로 거부돼 있으면 설정 앱으로 안내한다. */
     val isSettingsDialogVisible: Boolean = false,
+    val followMode: FollowMode = FollowMode.NONE,
+    /** 카메라가 내 위치에 맞춰져 있다. false면 내 위치 버튼은 카메라만 옮기고, true면 따라가기를 켠다. */
+    val isCameraOnMyLocation: Boolean = false,
 )

@@ -52,13 +52,21 @@ fun KakaoMapView(
     val lifecycleOwner = LocalLifecycleOwner.current
     // remember: 리컴포지션마다 MapView를 새로 만들지 않도록 한 번만 생성해 보관한다.
     val mapView = remember { MapView(context) }
+    // 지도가 준비되면 생기는 컨트롤러. 생명주기(나침반 켜고 끄기)와 정리에 쓴다(다시 그릴 필요가 없어 State가 아니다).
+    val controller = remember { arrayOfNulls<KakaoMapController>(1) }
 
     // Activity 생명주기를 MapView에 그대로 전달한다(PlatformView에서 ActivityAware로 하던 일).
     DisposableEffect(lifecycleOwner, mapView) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_RESUME -> mapView.resume()
-                Lifecycle.Event.ON_PAUSE -> mapView.pause()
+                Lifecycle.Event.ON_RESUME -> {
+                    mapView.resume()
+                    controller[0]?.setActive(true)
+                }
+                Lifecycle.Event.ON_PAUSE -> {
+                    mapView.pause()
+                    controller[0]?.setActive(false)
+                }
                 else -> Unit
             }
         }
@@ -66,6 +74,8 @@ fun KakaoMapView(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             state.detach()
+            controller[0]?.tearDown()
+            controller[0] = null
             mapView.finish()
         }
     }
@@ -82,7 +92,9 @@ fun KakaoMapView(
                         },
                         object : KakaoMapReadyCallback() {
                             override fun onMapReady(kakaoMap: KakaoMap) {
-                                state.attach(KakaoMapController(context, kakaoMap, state))
+                                val created = KakaoMapController(context, kakaoMap, state)
+                                controller[0] = created
+                                state.attach(created)
                             }
                             override fun getPosition(): LatLng = DEFAULT_MAP_CENTER.toLatLng()
                             override fun getZoomLevel(): Int = DEFAULT_ZOOM

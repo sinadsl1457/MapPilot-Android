@@ -9,7 +9,10 @@
     <string name="error_map_load">지도를 불러오지 못했어요: %1$s</string>
     <string name="message_locating">현재 위치를 확인하는 중이에요</string>
     <string name="my_location">내 위치</string>
-    <string name="my_location_hint_authorized">지도를 현재 위치로 이동합니다</string>
+    <string name="my_location_hint_move">지도를 현재 위치로 이동합니다</string>
+    <string name="my_location_hint_follow">내 위치를 따라갑니다</string>
+    <string name="my_location_hint_rotate">진행 방향으로 지도를 돌립니다</string>
+    <string name="my_location_hint_stop">따라가기를 끕니다</string>
     <string name="my_location_hint_unauthorized">위치 권한을 요청합니다</string>
 
     <!-- 권한 -->

@@ -6,7 +6,9 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RadialGradient
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import androidx.core.graphics.createBitmap
 import kotlin.math.ceil
@@ -21,6 +23,64 @@ internal object MarkerBitmaps {
     class MarkerImage(val bitmap: Bitmap, val anchorY: Float)
 
     private const val SHADOW_COLOR = 0x40000000
+
+    /**
+     * 정지 중이고 따라가기가 꺼져 있을 때. 내 위치 점(ic_marker_me와 같은 크기) 위에 폰이 향한 방향을 가리키는 작은 화살촉.
+     * 36dp(화살촉이 후광 밖으로 나와서 점보다 크다). 위(북쪽)를 가리키게 그리고, 회전은 라벨이 맡는다.
+     */
+    fun myLocationHeadingDot(context: Context, tint: Int): Bitmap {
+        val density = context.resources.displayMetrics.density
+        val size = 36 * density
+        val bitmap = createBitmap(ceil(size).toInt(), ceil(size).toInt())
+        val canvas = Canvas(bitmap)
+        val center = size / 2
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        paint.color = withAlpha(tint, 0x33)
+        canvas.drawCircle(center, center, 14 * density, paint)
+
+        val pointer = Path().apply {
+            moveTo(18 * density, 1.5f * density)
+            lineTo(23.5f * density, 9.5f * density)
+            lineTo(12.5f * density, 9.5f * density)
+            close()
+        }
+        canvas.drawPath(pointer, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tint })
+        val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1.5f * density
+            strokeJoin = Paint.Join.ROUND
+            color = Color.WHITE
+        }
+        canvas.drawPath(pointer, outline)
+
+        paint.color = Color.WHITE
+        canvas.drawCircle(center, center, 8 * density, paint)
+        paint.color = tint
+        canvas.drawCircle(center, center, 6 * density, paint)
+        return bitmap
+    }
+
+    /**
+     * 따라가기 중 정지해 있을 때 폰이 향한 방향. 80dp, 가운데에서 위(북쪽)로 퍼지는 부채꼴(70°). 회전은 라벨이 맡는다.
+     * 가운데는 진하고 바깥으로 갈수록 투명해진다. 내 위치 점 아래에 깔린다.
+     */
+    fun headingCone(context: Context, tint: Int): Bitmap {
+        val density = context.resources.displayMetrics.density
+        val size = 80 * density
+        val bitmap = createBitmap(ceil(size).toInt(), ceil(size).toInt())
+        val canvas = Canvas(bitmap)
+        val center = size / 2
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = RadialGradient(center, center, center, withAlpha(tint, 0x80), withAlpha(tint, 0), Shader.TileMode.CLAMP)
+        }
+        // Canvas 각도는 오른쪽이 0°이고 시계방향이다. 위쪽(270°)을 가운데로 양옆 35°씩.
+        canvas.drawArc(0f, 0f, size, size, 270f - CONE_SPREAD / 2, CONE_SPREAD, true, paint)
+        return bitmap
+    }
+
+    private const val CONE_SPREAD = 70f
+
+    private fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha shl 24)
 
     /** 아래 꼭짓점이 장소 위치를 가리키는 번호 핀. 기본: 흰 바탕·파란 테두리, 선택: 파란 바탕·흰 번호·1.25배 */
     fun placePin(context: Context, number: Int, selected: Boolean, tint: Int): MarkerImage {

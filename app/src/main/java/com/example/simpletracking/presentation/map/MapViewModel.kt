@@ -37,6 +37,9 @@ class MapViewModel @Inject constructor(
 
     private val locationPermissionGranted = MutableStateFlow(false)
     private val settingsDialogVisible = MutableStateFlow(false)
+    private val followMode = MutableStateFlow(FollowMode.NONE)
+    /** 카메라가 내 위치에 맞춰져 있다(첫 위치 이동 · 내 위치 버튼 이후 지도를 옮기지 않음). */
+    private val isCameraOnMyLocation = MutableStateFlow(false)
     /** 앱을 켠 뒤 권한 팝업을 자동으로 한 번만 띄운다. ViewModel이라 화면 회전에도 유지된다. */
     private var permissionRequestedOnStart = false
 
@@ -60,6 +63,7 @@ class MapViewModel @Inject constructor(
                 observeLocation().catch { e ->
                     if (e !is DomainException) throw e
                     locationPermissionGranted.value = false
+                    stopFollowing()
                     _effects.send(MapEffect.ShowError(e.error))
                 }
             }
@@ -72,14 +76,22 @@ class MapViewModel @Inject constructor(
      * 화면 회전(1초 미만)에는 끊기지 않는다.
      */
     val uiState: StateFlow<MapUiState> =
-        combine(locationPermissionGranted, myLocation, settingsDialogVisible) { granted, location, dialog ->
-            MapUiState(hasLocationPermission = granted, myLocation = location, isSettingsDialogVisible = dialog)
+        combine(locationPermissionGranted, myLocation, settingsDialogVisible, followMode, isCameraOnMyLocation) {
+                granted, location, dialog, mode, cameraOnMe ->
+            MapUiState(
+                hasLocationPermission = granted,
+                myLocation = location,
+                isSettingsDialogVisible = dialog,
+                followMode = mode,
+                isCameraOnMyLocation = cameraOnMe,
+            )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), MapUiState())
 
     init {
         // 첫 위치를 받으면 한 번만 카메라를 내 위치로 옮긴다.
         viewModelScope.launch {
             val first = myLocation.filterNotNull().first()
+            isCameraOnMyLocation.value = true
             _effects.send(MapEffect.MoveCamera(first.point, ZOOM_MY_LOCATION))
         }
     }
@@ -91,6 +103,7 @@ class MapViewModel @Inject constructor(
     fun onResume() {
         val granted = hasLocationPermission()
         locationPermissionGranted.value = granted
+        if (!granted) stopFollowing()
         if (!granted && !permissionRequestedOnStart) {
             permissionRequestedOnStart = true
             _effects.trySend(MapEffect.RequestLocationPermission)
@@ -103,6 +116,7 @@ class MapViewModel @Inject constructor(
      */
     fun onLocationPermissionResult(granted: Boolean, canAskAgain: Boolean = true) {
         locationPermissionGranted.value = granted
+        if (!granted) stopFollowing()
         if (!granted && !canAskAgain) settingsDialogVisible.value = true
     }
 
@@ -110,15 +124,42 @@ class MapViewModel @Inject constructor(
         settingsDialogVisible.value = false
     }
 
+    /**
+     * 권한 없음 → 권한 요청 / 위치 모름 → 안내 /
+     * 지도를 옮겨 둠 → 내 위치로 카메라만 옮긴다(따라가기는 아직 끔) /
+     * 카메라가 내 위치 → 따라가기 모드를 다음 단계로(NONE → FOLLOW → FOLLOW_WITH_HEADING → NONE).
+     * NONE에서 누를 때는 항상 내 위치로 카메라를 옮긴다.
+     */
     fun onMyLocationClick() {
-        viewModelScope.launch {
-            val state = uiState.value
-            when {
-                !state.hasLocationPermission -> _effects.send(MapEffect.RequestLocationPermission)
-                state.myLocation == null -> _effects.send(MapEffect.ShowMessage(R.string.message_locating))
-                else -> _effects.send(MapEffect.MoveCamera(state.myLocation.point, ZOOM_MY_LOCATION))
+        val state = uiState.value
+        when {
+            !state.hasLocationPermission -> _effects.trySend(MapEffect.RequestLocationPermission)
+            state.myLocation == null -> _effects.trySend(MapEffect.ShowMessage(R.string.message_locating))
+            else -> {
+                if (followMode.value == FollowMode.NONE) {
+                    _effects.trySend(MapEffect.MoveCamera(state.myLocation.point, ZOOM_MY_LOCATION))
+                    if (!isCameraOnMyLocation.value) {
+                        isCameraOnMyLocation.value = true
+                        return
+                    }
+                }
+                followMode.value = followMode.value.next
             }
         }
+    }
+
+    /** 사용자가 지도를 드래그했다. 내 위치로 카메라를 끌고 가지 않게 따라가기를 끈다. 다음 내 위치 버튼은 카메라만 옮긴다. */
+    fun onMapPanned() = stopFollowing()
+
+    /** 사용자가 지도를 직접 돌렸다. 회전 모드만 풀고 따라가기는 유지한다. */
+    fun onMapRotated() {
+        if (followMode.value == FollowMode.FOLLOW_WITH_HEADING) followMode.value = FollowMode.FOLLOW
+    }
+
+    /** 다른 기능이 카메라를 옮길 때(검색 결과, 길찾기) 화면이 부른다. 끄지 않으면 트래킹이 카메라를 바로 내 위치로 되돌린다. */
+    fun stopFollowing() {
+        followMode.value = FollowMode.NONE
+        isCameraOnMyLocation.value = false
     }
 
     companion object {

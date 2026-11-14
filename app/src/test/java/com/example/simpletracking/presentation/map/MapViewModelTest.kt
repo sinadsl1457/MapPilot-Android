@@ -170,4 +170,97 @@ class MapViewModelTest {
 
         assertEquals(MapEffect.MoveCamera(location.point, MapViewModel.ZOOM_MY_LOCATION), effects.last())
     }
+
+    // region 따라가기 (Flutter map_notifier_test · iOS MapViewModelTests와 같은 경우)
+
+    /** 권한이 있고 첫 위치를 받아 카메라가 내 위치에 있는 상태. */
+    private fun TestScope.onMyLocation() {
+        subscribeUi()
+        viewModel.onResume()
+        runCurrentLocation()
+    }
+
+    private fun TestScope.runCurrentLocation() {
+        backgroundScope.launch(immediate()) { locationRepository.locations.emit(userLocation(37.5, 127.0)) }
+    }
+
+    private fun TestScope.following(mode: FollowMode) {
+        onMyLocation()
+        while (viewModel.uiState.value.followMode != mode) viewModel.onMyLocationClick()
+    }
+
+    @Test
+    fun `카메라가 내 위치면 누를 때마다 따라가기, 지도 회전, 해제 순으로 바뀐다`() = runTest {
+        onMyLocation()
+        val modes = (1..4).map {
+            viewModel.onMyLocationClick()
+            viewModel.uiState.value.followMode
+        }
+
+        assertEquals(listOf(FollowMode.FOLLOW, FollowMode.FOLLOW_WITH_HEADING, FollowMode.NONE, FollowMode.FOLLOW), modes)
+    }
+
+    @Test
+    fun `지도를 옮긴 뒤 누르면 카메라만 옮기고, 한 번 더 누르면 따라가기를 켠다`() = runTest {
+        onMyLocation()
+        viewModel.onMapPanned()
+        assertFalse(viewModel.uiState.value.isCameraOnMyLocation)
+
+        viewModel.onMyLocationClick()
+        assertEquals(FollowMode.NONE, viewModel.uiState.value.followMode)
+        assertTrue(viewModel.uiState.value.isCameraOnMyLocation)
+
+        viewModel.onMyLocationClick()
+        assertEquals(FollowMode.FOLLOW, viewModel.uiState.value.followMode)
+    }
+
+    @Test
+    fun `위치를 모르면 따라가기를 켜지 않는다`() = runTest {
+        subscribeUi()
+        viewModel.onResume()
+
+        viewModel.onMyLocationClick()
+        viewModel.onMyLocationClick()
+
+        assertEquals(FollowMode.NONE, viewModel.uiState.value.followMode)
+    }
+
+    @Test
+    fun `지도를 드래그하면 따라가기를 끈다`() = runTest {
+        following(FollowMode.FOLLOW_WITH_HEADING)
+
+        viewModel.onMapPanned()
+
+        assertEquals(FollowMode.NONE, viewModel.uiState.value.followMode)
+    }
+
+    @Test
+    fun `지도를 돌리면 회전만 풀고 따라가기는 유지한다`() = runTest {
+        following(FollowMode.FOLLOW_WITH_HEADING)
+
+        viewModel.onMapRotated()
+
+        assertEquals(FollowMode.FOLLOW, viewModel.uiState.value.followMode)
+    }
+
+    @Test
+    fun `다른 기능이 카메라를 옮기면 끈다`() = runTest {
+        following(FollowMode.FOLLOW)
+
+        viewModel.stopFollowing()
+
+        assertEquals(FollowMode.NONE, viewModel.uiState.value.followMode)
+        assertFalse(viewModel.uiState.value.isCameraOnMyLocation)
+    }
+
+    @Test
+    fun `위치 권한을 잃으면 끈다`() = runTest {
+        following(FollowMode.FOLLOW)
+
+        viewModel.onLocationPermissionResult(granted = false)
+
+        assertEquals(FollowMode.NONE, viewModel.uiState.value.followMode)
+    }
+
+    // endregion
 }

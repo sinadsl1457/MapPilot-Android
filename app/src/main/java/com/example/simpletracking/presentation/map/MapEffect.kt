@@ -9,6 +9,7 @@ import com.example.simpletracking.domain.result.DomainError
  * 상태에 넣으면 화면 회전 후 재구독할 때 다시 실행되므로(스낵바 두 번 등) 분리한다.
  */
 sealed interface MapEffect {
+    /** 내 위치로 카메라를 옮긴다(첫 위치, 내 위치 버튼). 화면은 애니메이션 없이 바로 놓는다. */
     data class MoveCamera(val target: GeoPoint, val zoomLevel: Int) : MapEffect
     data class ShowError(val error: DomainError) : MapEffect
     data class ShowMessage(@param:StringRes val messageRes: Int) : MapEffect
