@@ -34,8 +34,6 @@ android {
 
         buildConfigField("String", "KAKAO_NATIVE_APP_KEY", "\"${localProperty("KAKAO_NATIVE_APP_KEY")}\"")
         buildConfigField("String", "KAKAO_REST_API_KEY", "\"${localProperty("KAKAO_REST_API_KEY")}\"")
-        // 선택: GPS 대신 쓸 고정 위치 "위도,경도"(에뮬레이터·연습용). 비워 두면 실제 GPS를 쓴다.
-        buildConfigField("String", "FIXED_LOCATION", "\"${localProperty("FIXED_LOCATION")}\"")
 
         // 카카오맵 SDK는 ARM 네이티브 라이브러리만 제공한다.
         ndk {
