@@ -26,6 +26,7 @@
     <string name="search_clear_text">입력 지우기</string>
     <string name="search_results_count">%1$d곳</string>
     <string name="search_results_empty">검색 결과가 없어요</string>
+    <string name="search_suggest_empty">\'%1$s\' 검색 결과가 없어요</string>
     <string name="search_back_to_list">목록</string>
     <string name="search_recent_title">최근 검색</string>
     <string name="search_recent_clear_all">전체 삭제</string>

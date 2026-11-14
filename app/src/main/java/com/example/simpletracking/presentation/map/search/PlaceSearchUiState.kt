@@ -1,5 +1,6 @@
 package com.example.simpletracking.presentation.map.search
 
+import com.example.simpletracking.domain.usecase.normalizeQuery
 import com.example.simpletracking.domain.model.GeoPoint
 import com.example.simpletracking.domain.model.Place
 import com.example.simpletracking.domain.model.PlaceCategory
@@ -29,7 +30,12 @@ data class PlaceSearchUiState(
     val recentQueries: List<String> = emptyList(),
     /** 검색 페이지에서 입력하는 동안 보여주는 추천 장소(자동완성) */
     val suggestions: List<Place> = emptyList(),
+    /** [suggestions]를 찾은 검색어(정리된 형태). 입력 중에는 지금 입력과 다를 수 있다. */
+    val suggestionsQuery: String = "",
 ) {
+    /** 지금 입력의 추천 결과가 도착했는데 비어 있을 때만 "결과 없음"을 보인다(받는 중에는 이전 목록을 그대로 둔다). */
+    val isSuggestionEmpty: Boolean get() = suggestions.isEmpty() && suggestionsQuery.isNotEmpty() && suggestionsQuery == normalizeQuery(query)
+
     val places: List<Place> get() = (phase as? SearchPhase.Loaded)?.places.orEmpty()
     val selectedCategory: PlaceCategory? get() = (source as? SearchSource.Category)?.category
     val keyword: String? get() = (source as? SearchSource.Keyword)?.keyword

@@ -241,7 +241,7 @@ class PlaceSearchViewModelTest {
     }
 
     @Test
-    fun `추천 장소를 누르면 페이지를 닫고 그 장소를 고르며 최근 검색에 이름을 남긴다`() = runTest {
+    fun `추천 장소를 누르면 페이지를 닫고 그 장소를 고르며 최근 검색에 그 검색어를 남긴다`() = runTest {
         val target = place("2", 37.3, 127.3)
         places.keywordResult = AppResult.Success(listOf(place("1"), target))
         val effects = collectEffects()
@@ -256,6 +256,33 @@ class PlaceSearchViewModelTest {
         assertEquals(2, state.places.size)
         assertEquals(target, state.selectedPlace)
         assertEquals(listOf(PlaceSearchEffect.Focus(target.location)), effects)
-        assertEquals("장소 2", state.recentQueries.first())
+        assertEquals("현대백화점", state.recentQueries.first())
+    }
+
+    @Test
+    fun `입력 중에 이전 추천을 고르면 그 추천을 찾은 검색어를 남긴다`() = runTest {
+        val target = place("1")
+        places.keywordResult = AppResult.Success(listOf(target))
+        viewModel.openSearchPage(center = null)
+        viewModel.onQueryChange("카페")
+        advanceTimeBy(400)
+        viewModel.onQueryChange("카페 강") // 아직 새 추천은 오지 않았다
+
+        viewModel.selectSuggestion(target)
+
+        assertEquals(SearchSource.Keyword("카페"), state.source)
+        assertEquals("카페", state.recentQueries.first())
+    }
+
+    @Test
+    fun `지금 입력의 추천이 비었을 때만 결과 없음`() = runTest {
+        places.keywordResult = AppResult.Success(emptyList())
+        viewModel.openSearchPage(center = null)
+
+        viewModel.onQueryChange("없는곳")
+        assertFalse("아직 받는 중", state.isSuggestionEmpty)
+        advanceTimeBy(400)
+
+        assertTrue(state.isSuggestionEmpty)
     }
 }

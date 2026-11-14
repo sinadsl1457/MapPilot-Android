@@ -99,8 +99,17 @@ fun SearchPage(
             HorizontalDivider()
 
             if (state.query.isNotBlank()) {
-                // 입력 중에는 최근 검색 대신 추천 장소를 보여준다.
-                SuggestionList(state.query, state.suggestions, onSuggestionClick)
+                // 입력 중에는 최근 검색 대신 추천 장소를 보여준다. 지금 입력의 결과가 비었을 때만 안내 문구.
+                if (state.isSuggestionEmpty) {
+                    Text(
+                        stringResource(R.string.search_suggest_empty, state.suggestionsQuery),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 40.dp),
+                    )
+                } else {
+                    SuggestionList(state.query, state.suggestions, onSuggestionClick)
+                }
             } else if (state.recentQueries.isEmpty()) {
                 Text(
                     stringResource(R.string.search_recent_empty),

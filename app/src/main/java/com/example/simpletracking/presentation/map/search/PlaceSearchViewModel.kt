@@ -73,10 +73,13 @@ class PlaceSearchViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .debounce { if (it.isEmpty()) 0L else SUGGESTION_DEBOUNCE_MILLIS }
                 .mapLatest { query ->
-                    if (query.isEmpty()) emptyList()
+                    val places = if (query.isEmpty()) emptyList()
                     else (searchPlaces(query, suggestionCenter) as? AppResult.Success)?.data.orEmpty()
+                    query to places
                 }
-                .collect { suggestions -> _uiState.update { it.copy(suggestions = suggestions) } }
+                .collect { (query, suggestions) ->
+                    _uiState.update { it.copy(suggestions = suggestions, suggestionsQuery = query) }
+                }
         }
     }
 
@@ -95,20 +98,24 @@ class PlaceSearchViewModel @Inject constructor(
 
     fun onQueryChange(query: String) = setQuery(query)
 
-    /** 추천 장소를 누르면 페이지를 닫고 그 장소를 바로 고른다. 추천 목록 전체는 결과로 지도에 남긴다. */
+    /**
+     * 추천 장소를 누르면 페이지를 닫고 그 장소를 바로 고른다. 추천 목록 전체는 결과로 지도에 남긴다.
+     * 최근 검색어에는 그 목록을 찾은 검색어를 남긴다(입력이 더 진행됐어도). Flutter·iOS와 같은 규칙.
+     */
     fun selectSuggestion(place: Place) {
         beginSearch()
         val state = _uiState.value
+        val keyword = state.suggestionsQuery
         _uiState.update {
             it.copy(
                 isSearchPageVisible = false,
-                source = SearchSource.Keyword(normalizeQuery(state.query)),
+                source = SearchSource.Keyword(keyword),
                 phase = SearchPhase.Loaded(state.suggestions),
             )
         }
         select(place)
         viewModelScope.launch {
-            val recents = recentSearches.add(place.name)
+            val recents = recentSearches.add(keyword)
             _uiState.update { it.copy(recentQueries = recents) }
         }
     }
