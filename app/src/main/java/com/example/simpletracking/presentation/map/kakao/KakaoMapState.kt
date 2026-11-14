@@ -45,6 +45,10 @@ class KakaoMapState {
     var cameraCenter: GeoPoint? = null
         private set
 
+    /** 카메라가 멈췄을 때의 줌. 길찾기를 끝내고 카메라를 되돌릴 때 쓴다. */
+    var cameraZoom: Int? = null
+        private set
+
     /** 사용자가 검색 결과 마커를 눌렀을 때(장소 id) */
     var onPlaceClick: ((String) -> Unit)? = null
 
@@ -120,8 +124,9 @@ class KakaoMapState {
         loadFailure = reason
     }
 
-    internal fun cameraDidStop(center: GeoPoint) {
+    internal fun cameraDidStop(center: GeoPoint, zoom: Int) {
         cameraCenter = center
+        cameraZoom = zoom
     }
 
     internal fun placeClicked(id: String) {

@@ -107,7 +107,7 @@ internal class KakaoMapController(
             state.placeClicked(label.labelId)
             true
         }
-        map.setOnCameraMoveEndListener { _, position, _ -> state.cameraDidStop(position.position.toGeoPoint()) }
+        map.setOnCameraMoveEndListener { _, position, _ -> state.cameraDidStop(position.position.toGeoPoint(), position.zoomLevel) }
         // 코드로 옮긴 카메라(애니메이션·트래킹)는 Unknown으로 와서 무시된다.
         map.setOnCameraMoveStartListener { _, gesture ->
             when (gesture) {
@@ -116,7 +116,7 @@ internal class KakaoMapController(
                 else -> Unit
             }
         }
-        map.cameraPosition?.let { state.cameraDidStop(it.position.toGeoPoint()) }
+        map.cameraPosition?.let { state.cameraDidStop(it.position.toGeoPoint(), it.zoomLevel) }
     }
 
     /** KakaoMapView가 지도를 없앨 때. 센서와 리스너를 끊는다. */

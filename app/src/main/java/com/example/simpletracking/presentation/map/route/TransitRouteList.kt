@@ -64,9 +64,9 @@ fun TransitRouteListHeader(result: ModeResult?) {
     }
 }
 
-/** 대중교통 경로 후보 목록. 하나를 고르면 지도에 그 경로를 그린다. */
+/** 대중교통 경로 후보 목록(RouteListPage). 하나를 고르면 지도에 그 경로를 그린다. [selectedIndex]가 null이면 강조하지 않는다. */
 @Composable
-fun TransitRouteList(result: ModeResult?, selectedIndex: Int, onSelect: (Int) -> Unit) {
+fun TransitRouteList(result: ModeResult?, selectedIndex: Int?, onSelect: (Int) -> Unit) {
     when (result) {
         is ModeResult.Transit -> LazyColumn {
             itemsIndexed(result.routes) { index, route ->
@@ -83,14 +83,15 @@ fun TransitRouteList(result: ModeResult?, selectedIndex: Int, onSelect: (Int) ->
     }
 }
 
+/** 대중교통 경로 한 줄. 목록과 지도 위 요약 카드(RouteSummaryCard, [onClick] 없음)가 같이 쓴다. */
 @Composable
-private fun TransitRouteRow(route: TransitRoute, isSelected: Boolean, onClick: () -> Unit) {
+fun TransitRouteRow(route: TransitRoute, isSelected: Boolean, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
     val accent = MaterialTheme.colorScheme.primary
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .semantics { selected = isSelected }
-            .clickable(onClick = onClick)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .background(if (isSelected) accent.copy(alpha = 0.08f) else Color.Transparent)
             // 왼쪽 선택 표시 막대는 배경에 직접 그린다. IntrinsicSize로 높이를 맞추면
             // 안에 있는 BoxWithConstraints(구간 막대) 때문에 Compose가 크래시를 낸다.

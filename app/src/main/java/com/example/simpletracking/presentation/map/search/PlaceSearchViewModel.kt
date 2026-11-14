@@ -6,6 +6,7 @@ import com.example.simpletracking.domain.model.GeoPoint
 import com.example.simpletracking.domain.model.Place
 import com.example.simpletracking.domain.model.PlaceCategory
 import com.example.simpletracking.domain.result.AppResult
+import com.example.simpletracking.domain.usecase.RecentPlacesUseCase
 import com.example.simpletracking.domain.usecase.RecentSearchesUseCase
 import com.example.simpletracking.domain.usecase.SearchPlacesByCategoryUseCase
 import com.example.simpletracking.domain.usecase.SearchPlacesUseCase
@@ -34,6 +35,8 @@ class PlaceSearchViewModel @Inject constructor(
     private val searchPlaces: SearchPlacesUseCase,
     private val searchPlacesByCategory: SearchPlacesByCategoryUseCase,
     private val recentSearches: RecentSearchesUseCase,
+    /** 상세를 본 장소는 길찾기 준비 화면의 "최근 장소"에 남긴다. */
+    private val recentPlaces: RecentPlacesUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PlaceSearchUiState())
@@ -190,9 +193,11 @@ class PlaceSearchViewModel @Inject constructor(
 
     // region 결과·선택
 
+    /** 결과 목록에서 장소 탭(또는 지도 핀 탭). 상세를 보여주고(effect Focus로 카메라 이동) 최근 장소에 남긴다. */
     fun select(place: Place) {
         _uiState.update { it.copy(selectedPlace = place) }
         _effects.trySend(PlaceSearchEffect.Focus(place.location))
+        viewModelScope.launch { recentPlaces.add(place) }
     }
 
     /** 지도 마커를 눌렀을 때. 지금 결과에 없는 id는 무시한다. */

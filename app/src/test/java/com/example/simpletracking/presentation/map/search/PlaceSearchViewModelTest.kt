@@ -1,5 +1,8 @@
 package com.example.simpletracking.presentation.map.search
 
+import kotlinx.coroutines.test.advanceUntilIdle
+import com.example.simpletracking.testutil.FakeRecentPlaceRepository
+import com.example.simpletracking.domain.usecase.RecentPlacesUseCase
 import com.example.simpletracking.domain.model.PlaceCategory
 import com.example.simpletracking.domain.result.AppResult
 import com.example.simpletracking.domain.result.DomainError
@@ -31,8 +34,14 @@ class PlaceSearchViewModelTest {
 
     private val places = FakePlaceRepository()
     private val recents = FakeRecentSearchRepository(initial = listOf("서울역"))
+    private val recentPlaces = FakeRecentPlaceRepository()
     private val viewModel by lazy {
-        PlaceSearchViewModel(SearchPlacesUseCase(places), SearchPlacesByCategoryUseCase(places), RecentSearchesUseCase(recents))
+        PlaceSearchViewModel(
+            SearchPlacesUseCase(places),
+            SearchPlacesByCategoryUseCase(places),
+            RecentSearchesUseCase(recents),
+            RecentPlacesUseCase(recentPlaces),
+        )
     }
     private val state get() = viewModel.uiState.value
 
@@ -284,5 +293,15 @@ class PlaceSearchViewModelTest {
         advanceTimeBy(400)
 
         assertTrue(state.isSuggestionEmpty)
+    }
+
+    @Test
+    fun `선택한 장소는 최근 장소에 남는다`() = runTest {
+        val target = place("2")
+
+        viewModel.select(target)
+        advanceUntilIdle()
+
+        assertEquals(listOf("2"), recentPlaces.saved.map { it.place.id })
     }
 }

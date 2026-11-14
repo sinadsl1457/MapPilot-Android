@@ -1,5 +1,7 @@
 package com.example.simpletracking.testutil
 
+import com.example.simpletracking.domain.repository.RecentPlaceRepository
+import com.example.simpletracking.domain.model.RecentPlace
 import com.example.simpletracking.domain.model.GeoPoint
 import com.example.simpletracking.domain.model.Place
 import com.example.simpletracking.domain.model.PlaceCategory
@@ -42,9 +44,12 @@ class FakeRouteRepository : RouteRepository {
     var walkResult: AppResult<Route> = AppResult.Success(route(minutes = 90))
     var transitResult: AppResult<List<TransitRoute>> = AppResult.Success(listOf(transitRoute(minutes = 40)))
     val calls = mutableListOf<String>()
+    /** 자동차 경로 요청의 (출발, 도착). 출발지·도착지를 바꾼 뒤 무엇으로 찾았는지 확인할 때 쓴다. */
+    val carRequests = mutableListOf<Pair<GeoPoint, GeoPoint>>()
 
     override suspend fun findCarRoute(origin: GeoPoint, destination: GeoPoint): AppResult<Route> {
         calls += "car"
+        carRequests += origin to destination
         return carResult
     }
 
@@ -64,6 +69,14 @@ class FakeRecentSearchRepository(initial: List<String> = emptyList()) : RecentSe
     override suspend fun load(): List<String> = saved
     override suspend fun save(queries: List<String>) {
         saved = queries
+    }
+}
+
+class FakeRecentPlaceRepository(initial: List<RecentPlace> = emptyList()) : RecentPlaceRepository {
+    var saved: List<RecentPlace> = initial
+    override suspend fun load(): List<RecentPlace> = saved
+    override suspend fun save(places: List<RecentPlace>) {
+        saved = places
     }
 }
 

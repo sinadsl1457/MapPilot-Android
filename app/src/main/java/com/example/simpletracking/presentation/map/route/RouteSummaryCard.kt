@@ -1,5 +1,7 @@
 package com.example.simpletracking.presentation.map.route
 
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -35,9 +37,12 @@ import com.example.simpletracking.presentation.common.formatDistance
 import com.example.simpletracking.presentation.common.formatWon
 import com.example.simpletracking.presentation.common.messageRes
 
-/** 자동차·도보 길찾기 하단 카드: 예상 시간, 거리, 도착 예정 시각, 요금 */
+/**
+ * 지도에서 경로를 보는 중의 하단 카드. 자동차·도보: 예상 시간, 거리, 도착 예정 시각, 요금.
+ * 대중교통: 목록에서 고른 [transitIndex]번째 경로 한 줄.
+ */
 @Composable
-fun RouteSummaryCard(mode: TravelMode, result: ModeResult?, modifier: Modifier = Modifier) {
+fun RouteSummaryCard(mode: TravelMode, result: ModeResult?, modifier: Modifier = Modifier, transitIndex: Int = 0) {
     Surface(
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
         shadowElevation = 8.dp,
@@ -67,7 +72,10 @@ fun RouteSummaryCard(mode: TravelMode, result: ModeResult?, modifier: Modifier =
             when (result) {
                 is ModeResult.Found -> RouteSummary(result.route)
                 is ModeResult.Failed -> RouteFailureText(result.error, Modifier.height(60.dp))
-                ModeResult.Loading, is ModeResult.Transit, null -> RouteLoadingText(Modifier.height(60.dp))
+                is ModeResult.Transit -> result.routes.getOrNull(transitIndex)
+                    ?.let { TransitRouteRow(it, isSelected = false, onClick = null, modifier = Modifier.bleedHorizontally(20.dp)) }
+                    ?: RouteLoadingText(Modifier.height(60.dp))
+                ModeResult.Loading, null -> RouteLoadingText(Modifier.height(60.dp))
             }
         }
     }
@@ -114,4 +122,11 @@ fun RouteLoadingText(modifier: Modifier = Modifier) {
         Spacer(Modifier.width(10.dp))
         SecondaryText(stringResource(R.string.route_loading))
     }
+}
+
+/** 부모의 좌우 안쪽 여백([amount])을 무시하고 양옆으로 넓게 그린다(경로 줄이 자기 여백을 갖고 있어서). 음수 padding은 Compose가 허용하지 않는다. */
+private fun Modifier.bleedHorizontally(amount: Dp): Modifier = layout { measurable, constraints ->
+    val extra = amount.roundToPx() * 2
+    val placeable = measurable.measure(constraints.copy(minWidth = constraints.maxWidth + extra, maxWidth = constraints.maxWidth + extra))
+    layout(constraints.maxWidth, placeable.height) { placeable.place(-amount.roundToPx(), 0) }
 }

@@ -1,9 +1,11 @@
 package com.example.simpletracking.di
 
+import com.example.simpletracking.data.local.RecentPlaceRepositoryImpl
 import com.example.simpletracking.data.local.RecentSearchRepositoryImpl
 import com.example.simpletracking.data.repository.PlaceRepositoryImpl
 import com.example.simpletracking.data.repository.RouteRepositoryImpl
 import com.example.simpletracking.domain.repository.PlaceRepository
+import com.example.simpletracking.domain.repository.RecentPlaceRepository
 import com.example.simpletracking.domain.repository.RecentSearchRepository
 import com.example.simpletracking.domain.repository.RouteRepository
 import dagger.Binds
@@ -32,4 +34,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindRecentSearchRepository(impl: RecentSearchRepositoryImpl): RecentSearchRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindRecentPlaceRepository(impl: RecentPlaceRepositoryImpl): RecentPlaceRepository
 }

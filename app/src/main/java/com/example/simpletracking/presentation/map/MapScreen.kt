@@ -1,5 +1,17 @@
 package com.example.simpletracking.presentation.map
 
+import com.example.simpletracking.presentation.map.route.title
+import com.example.simpletracking.presentation.map.route.rememberRouteFlowState
+import com.example.simpletracking.presentation.map.route.RouteShownBar
+import com.example.simpletracking.presentation.map.route.RoutePlannerViewModel
+import com.example.simpletracking.presentation.map.route.RouteFlowOverlays
+import com.example.simpletracking.presentation.map.route.EndpointSearchViewModel
+import com.example.simpletracking.presentation.map.route.EndpointRole
+import com.example.simpletracking.presentation.map.route.DirectionsButton
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
 import android.Manifest
 import android.content.Intent
 import android.provider.Settings
@@ -111,6 +123,12 @@ class MapChromeMetrics {
     val mediumSheetDp: Float get() = screenHeightDp * SHEET_MEDIUM_FRACTION
 }
 
+/** 길찾기 시작 전 카메라(중심·줌)와 직전 길찾기 여부. 다시 그릴 필요가 없는 값이라 State가 아니다. */
+private class RouteCameraMemory {
+    var wasActive = false
+    var before: Pair<GeoPoint, Int>? = null
+}
+
 /**
  * Route = BlocProvider + BlocListener 역할.
  * ViewModel을 꺼내 서로 잇고, 권한·이펙트처럼 Android 플랫폼(Activity)이 필요한 일을 처리한다.
@@ -120,6 +138,8 @@ fun MapRoute(
     mapViewModel: MapViewModel = hiltViewModel(),
     searchViewModel: PlaceSearchViewModel = hiltViewModel(),
     routeViewModel: RouteViewModel = hiltViewModel(),
+    plannerViewModel: RoutePlannerViewModel = hiltViewModel(),
+    endpointViewModel: EndpointSearchViewModel = hiltViewModel(),
 ) {
     // collectAsStateWithLifecycle: 앱이 백그라운드(STOPPED)면 구독을 멈춘다 → ViewModel의 WhileSubscribed 5초 타이머가 돈다.
     val mapUi by mapViewModel.uiState.collectAsStateWithLifecycle()
@@ -131,8 +151,10 @@ fun MapRoute(
     val activity = LocalActivity.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     val mapState = rememberKakaoMapState()
     val chrome = remember { MapChromeMetrics() }
+    val routeFlow = rememberRouteFlowState()
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -164,6 +186,24 @@ fun MapRoute(
     }
     val overlay = route.overlay
     LaunchedEffect(overlay) { mapState.showRoute(overlay) }
+    // 길찾기를 시작하면(경로에 맞춰 줌 아웃하기 전) 지금 카메라를 기억해 두고, 끝나면 그 위치·줌으로 되돌린다.
+    val routeCamera = remember { RouteCameraMemory() }
+    LaunchedEffect(route.isActive) {
+        if (route.isActive == routeCamera.wasActive) return@LaunchedEffect // 처음 그릴 때·화면 회전
+        routeCamera.wasActive = route.isActive
+        if (route.isActive) {
+            routeCamera.before = mapState.cameraCenter?.let { center -> mapState.cameraZoom?.let { center to it } }
+        } else {
+            // 길찾기 중에 따라가기를 켰더라도 끈다. 켜 두면 복원한 카메라를 트래킹이 다시 끌고 간다.
+            mapViewModel.stopFollowing()
+            val before = routeCamera.before
+            routeCamera.before = null
+            when {
+                before != null -> mapState.moveCamera(before.first, before.second)
+                search.selectedPlace != null -> mapState.moveCamera(search.selectedPlace!!.location, ZOOM_PLACE)
+            }
+        }
+    }
     DisposableEffect(mapState, searchViewModel) {
         mapState.onPlaceClick = searchViewModel::selectPlace
         onDispose { mapState.onPlaceClick = null }
@@ -219,12 +259,11 @@ fun MapRoute(
                 routeViewModel.effects.collect { effect ->
                     when (effect) {
                         is RouteEffect.FitCamera -> {
-                            val transit = routeViewModel.uiState.value.selectedMode == TravelMode.TRANSIT
-                            // 아래 경로 카드는 이 effect와 같은 상태 변경으로 이제 막 바뀐다. 다시 그려진 뒤의 실제 높이로 맞춘다.
+                            // 아래 경로 카드는 이 effect와 같은 상태 변경으로 이제 막 바뀐다(목록이 닫히는 중일 수도 있다).
+                            // 다시 그려진 뒤의 실제 높이로 맞춘다.
                             launch {
-                                if (!transit) delay(ROUTE_CARD_SETTLE_MILLIS)
-                                val bottom = if (transit) chrome.mediumSheetDp else chrome.routeCardHeightDp
-                                cameraAwayFromMe { mapState.fitCamera(effect.points, chrome.insets(bottomDp = bottom)) }
+                                delay(ROUTE_CARD_SETTLE_MILLIS)
+                                cameraAwayFromMe { mapState.fitCamera(effect.points, chrome.insets(bottomDp = chrome.routeCardHeightDp)) }
                             }
                         }
                         is RouteEffect.ShowError -> showMessage(resources.getString(effect.error.messageRes()))
@@ -284,13 +323,34 @@ fun MapRoute(
                 if (!mapUi.hasLocationPermission) mapViewModel.onMyLocationClick()
                 else routeViewModel.start(place, myPoint)
             },
-            onCloseRoute = {
-                routeViewModel.close()
-                search.selectedPlace?.let { cameraAwayFromMe { mapState.moveCamera(it.location, ZOOM_PLACE) } }
-            },
+            onCloseRoute = routeViewModel::close,
             onSelectMode = routeViewModel::selectMode,
-            onSelectTransitRoute = routeViewModel::selectTransitRoute,
+            onOpenPlanner = {
+                plannerViewModel.open(route.selectedMode)
+                routeFlow.isPlannerOpen = true
+            },
+            onTapRouteOrigin = {
+                endpointViewModel.open()
+                routeFlow.picking = EndpointRole.ORIGIN
+            },
+            onTapRouteDestination = {
+                endpointViewModel.open()
+                routeFlow.picking = EndpointRole.DESTINATION
+            },
+            onSwapRoute = { routeViewModel.swap(myPoint) },
+            onBackToRouteList = routeViewModel::backToList,
         ),
+        overlays = {
+            RouteFlowOverlays(
+                flow = routeFlow,
+                route = route,
+                routeViewModel = routeViewModel,
+                plannerViewModel = plannerViewModel,
+                endpointViewModel = endpointViewModel,
+                myLocation = myPoint,
+                onError = { error -> scope.launch { snackbarHostState.showSnackbar(resources.getString(error.messageRes())) } },
+            )
+        },
     )
 }
 
@@ -312,7 +372,14 @@ class MapScreenActions(
     val onStartRoute: (Place) -> Unit,
     val onCloseRoute: () -> Unit,
     val onSelectMode: (TravelMode) -> Unit,
-    val onSelectTransitRoute: (Int) -> Unit,
+    /** 검색창 옆 길찾기 버튼 */
+    val onOpenPlanner: () -> Unit,
+    /** 자동차·도보 경로를 보는 중 지도 위 출발·도착 카드의 줄 탭 */
+    val onTapRouteOrigin: () -> Unit,
+    val onTapRouteDestination: () -> Unit,
+    val onSwapRoute: () -> Unit,
+    /** 대중교통 경로를 보는 중 ‹ */
+    val onBackToRouteList: () -> Unit,
 )
 
 /**
@@ -328,26 +395,28 @@ fun MapScreen(
     snackbarHostState: SnackbarHostState,
     actions: MapScreenActions,
     chrome: MapChromeMetrics = remember { MapChromeMetrics() },
+    /** 지도 화면 위에 덮는 전체 화면들(길찾기 준비·경로 목록·출발지 선택). 맨 위에 그린다. */
+    overlays: @Composable () -> Unit = {},
 ) {
     val density = LocalDensity.current
     var sheetDetent by rememberSaveable { mutableStateOf(SheetDetent.MEDIUM) }
-    var transitSheetDetent by rememberSaveable { mutableStateOf(SheetDetent.MEDIUM) }
     var sheetHeight by remember { mutableStateOf(0.dp) }
     var routeCardHeight by remember { mutableStateOf(0.dp) }
 
     val isResultsSheetVisible = search.source != null && !route.isActive
-    val isTransitSheetVisible = route.isActive && route.selectedMode == TravelMode.TRANSIT
     val myPoint: GeoPoint? = mapUi.myLocation?.point
 
     // 장소를 고르면 지도가 잘 보이도록 시트를 접고, 목록으로 돌아오거나 새로 검색하면 중간 높이로 연다.
     LaunchedEffect(search.selectedPlace == null, search.source) {
         sheetDetent = if (search.selectedPlace == null) SheetDetent.MEDIUM else SheetDetent.COLLAPSED
     }
-    LaunchedEffect(route.destination) { if (route.destination != null) transitSheetDetent = SheetDetent.MEDIUM }
 
     // 뒤로 가기: 가장 위에 열린 것부터 하나씩 닫는다.
     BackHandler(enabled = search.isSearchPageVisible, onBack = actions.onCloseSearchPage)
-    BackHandler(enabled = !search.isSearchPageVisible && route.isActive, onBack = actions.onCloseRoute)
+    // 경로를 보던 중: 대중교통은 경로 목록으로, 자동차·도보는(목록이 없으니) 길찾기를 끝낸다. 목록 단계는 RouteFlowOverlays가 받는다.
+    BackHandler(enabled = !search.isSearchPageVisible && route.isShowingRoute) {
+        if (route.selectedMode == TravelMode.TRANSIT) actions.onBackToRouteList() else actions.onCloseRoute()
+    }
     BackHandler(enabled = !search.isSearchPageVisible && !route.isActive && search.selectedPlace != null, onBack = actions.onBackToList)
     BackHandler(
         enabled = !search.isSearchPageVisible && !route.isActive && search.selectedPlace == null && search.source != null,
@@ -357,8 +426,7 @@ fun MapScreen(
     // 내 위치 버튼·스낵바는 시트가 있으면 시트 윗변 위에, 없으면 화면 아래에 붙인다.
     val navigationBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val floatingBottom: Dp = when {
-        isTransitSheetVisible -> sheetHeight + 12.dp
-        route.isActive -> routeCardHeight + 12.dp
+        route.isShowingRoute -> routeCardHeight + 12.dp
         isResultsSheetVisible -> sheetHeight + 12.dp
         else -> navigationBarBottom + 24.dp
     }
@@ -375,24 +443,46 @@ fun MapScreen(
                 // 카메라를 맞출 때 위쪽 여백: 화면 맨 위부터 이 UI 아래 끝까지
                 .onGloballyPositioned { chrome.topCoveredDp = it.boundsInRoot().bottom / density.density },
         ) {
-            val destination = route.destination
-            if (destination != null) {
-                RouteHeader(destination.name, onClose = actions.onCloseRoute, modifier = Modifier.padding(horizontal = 16.dp))
-                TravelModeTabs(
-                    selected = route.selectedMode,
-                    results = route.results,
-                    onSelect = actions.onSelectMode,
+            when {
+                // 대중교통 경로를 보는 중: ‹ + "출발 → 도착"(누르면 목록으로)
+                route.isShowingRoute && route.selectedMode == TravelMode.TRANSIT -> RouteShownBar(
+                    originName = route.origin?.title().orEmpty(),
+                    destinationName = route.destination?.title().orEmpty(),
+                    onBack = actions.onBackToRouteList,
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
-            } else {
-                MapSearchBar(
-                    keyword = search.keyword,
-                    showsClear = isResultsSheetVisible,
-                    onClick = actions.onSearchBarClick,
-                    onClear = actions.onClearResults,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-                CategoryChips(selected = search.selectedCategory, onClick = actions.onCategoryClick)
+                // 자동차·도보 경로를 보는 중: 출발·도착 카드(바꾸기·맞바꾸기·✕) + 이동 수단 탭(대중교통을 누르면 목록으로)
+                route.isShowingRoute -> {
+                    RouteHeader(
+                        originName = route.origin?.title(),
+                        destinationName = route.destination?.title(),
+                        onTapOrigin = actions.onTapRouteOrigin,
+                        onTapDestination = actions.onTapRouteDestination,
+                        onSwap = actions.onSwapRoute,
+                        onClose = actions.onCloseRoute,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                    TravelModeTabs(
+                        selected = route.selectedMode,
+                        results = route.results,
+                        onSelect = actions.onSelectMode,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
+                else -> {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp)) {
+                        MapSearchBar(
+                            keyword = search.keyword,
+                            showsClear = isResultsSheetVisible,
+                            onClick = actions.onSearchBarClick,
+                            onClear = actions.onClearResults,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        DirectionsButton(onClick = actions.onOpenPlanner)
+                    }
+                    CategoryChips(selected = search.selectedCategory, onClick = actions.onCategoryClick)
+                }
             }
         }
 
@@ -420,26 +510,7 @@ fun MapScreen(
         }
 
         AnimatedVisibility(
-            visible = isTransitSheetVisible,
-            enter = slideInVertically { it },
-            exit = slideOutVertically { it },
-        ) {
-            MapBottomSheet(
-                detent = transitSheetDetent,
-                onDetentChange = { transitSheetDetent = it },
-                onVisibleHeightChange = { sheetHeight = it },
-                // 펼쳐도 출발·도착 카드와 이동 수단 탭은 가리지 않는다.
-                topReservedHeight = 160.dp,
-                header = { TransitRouteListHeader(route.selectedResult) },
-            ) {
-                Column(Modifier.navigationBarsPadding()) {
-                    TransitRouteList(route.selectedResult, route.selectedTransitIndex, actions.onSelectTransitRoute)
-                }
-            }
-        }
-
-        AnimatedVisibility(
-            visible = route.isActive && !isTransitSheetVisible,
+            visible = route.isShowingRoute,
             enter = slideInVertically { it },
             exit = slideOutVertically { it },
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -447,6 +518,7 @@ fun MapScreen(
             RouteSummaryCard(
                 mode = route.selectedMode,
                 result = route.selectedResult,
+                transitIndex = route.selectedTransitIndex,
                 modifier = Modifier.onSizeChanged {
                     routeCardHeight = with(density) { it.height.toDp() }
                     chrome.routeCardHeightDp = it.height / density.density
@@ -479,5 +551,7 @@ fun MapScreen(
                 onBack = actions.onCloseSearchPage,
             )
         }
+
+        overlays()
     }
 }

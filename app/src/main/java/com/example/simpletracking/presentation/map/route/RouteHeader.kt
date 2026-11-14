@@ -1,5 +1,8 @@
 package com.example.simpletracking.presentation.map.route
 
+import com.example.simpletracking.domain.model.RouteEndpoint
+import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,15 +40,34 @@ import com.example.simpletracking.R
 import com.example.simpletracking.domain.model.TravelMode
 import com.example.simpletracking.presentation.common.durationText
 
-/** 길찾기 중 상단에 뜨는 출발지·도착지 카드 */
+/**
+ * 출발지·도착지 카드. 길찾기 준비 화면, 경로 목록, 지도 위(자동차·도보)가 같이 쓴다.
+ * 줄을 누르면 그 지점을 바꾸고, ⇅로 두 지점을 맞바꾼다. 이름이 null이면 "출발지 입력"·"도착지 입력"을 흐리게 보여준다.
+ */
 @Composable
-fun RouteHeader(destinationName: String, onClose: () -> Unit, modifier: Modifier = Modifier) {
+fun RouteHeader(
+    originName: String?,
+    destinationName: String?,
+    onTapOrigin: () -> Unit,
+    onTapDestination: () -> Unit,
+    onSwap: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Surface(shape = RoundedCornerShape(12.dp), shadowElevation = 4.dp, modifier = modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp, end = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+            // 두 줄 사이 높이에 오도록 가운데에 둔다.
+            IconButton(onClick = onSwap) {
+                Icon(
+                    Icons.Filled.SwapVert,
+                    contentDescription = stringResource(R.string.route_swap),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Column(Modifier.weight(1f)) {
-                EndpointRow(RouteColors.Start, stringResource(R.string.route_origin_my_location))
+                EndpointRow(RouteColors.Start, originName, stringResource(R.string.route_origin_placeholder), onTapOrigin)
                 HorizontalDivider(Modifier.padding(start = 24.dp))
-                EndpointRow(RouteColors.End, destinationName)
+                EndpointRow(RouteColors.End, destinationName, stringResource(R.string.route_destination_placeholder), onTapDestination)
             }
             IconButton(onClick = onClose) {
                 Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.route_close))
@@ -55,12 +77,28 @@ fun RouteHeader(destinationName: String, onClose: () -> Unit, modifier: Modifier
 }
 
 @Composable
-private fun EndpointRow(color: Color, title: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(44.dp)) {
+private fun EndpointRow(color: Color, title: String?, placeholder: String, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().height(44.dp).clickable(onClick = onClick).padding(start = 4.dp),
+    ) {
         Box(Modifier.size(10.dp).background(color, CircleShape))
         Spacer(Modifier.width(14.dp))
-        Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            title ?: placeholder,
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (title == null) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
+}
+
+/** 표시 이름: "내 위치" 또는 장소 이름. */
+@Composable
+fun RouteEndpoint.title(): String = when (this) {
+    RouteEndpoint.MyLocation -> stringResource(R.string.route_origin_my_location)
+    is RouteEndpoint.PlaceEndpoint -> place.name
 }
 
 /** 길찾기 상단의 이동 수단 탭. 탭마다 소요 시간을 미리 보여준다. */
