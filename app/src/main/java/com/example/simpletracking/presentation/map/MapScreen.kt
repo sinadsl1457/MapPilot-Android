@@ -37,6 +37,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -59,6 +61,7 @@ import com.example.simpletracking.domain.model.PlaceCategory
 import com.example.simpletracking.domain.model.TravelMode
 import com.example.simpletracking.presentation.common.LOCATION_PERMISSIONS
 import com.example.simpletracking.presentation.common.MapBottomSheet
+import com.example.simpletracking.presentation.common.SHEET_MEDIUM_FRACTION
 import com.example.simpletracking.presentation.common.SheetDetent
 import com.example.simpletracking.presentation.common.messageRes
 import com.example.simpletracking.presentation.map.kakao.DEFAULT_MAP_CENTER
@@ -81,10 +84,32 @@ import com.example.simpletracking.presentation.map.search.PlaceSearchEffect
 import com.example.simpletracking.presentation.map.search.PlaceSearchUiState
 import com.example.simpletracking.presentation.map.search.PlaceSearchViewModel
 import com.example.simpletracking.presentation.map.search.SearchPage
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** 검색 결과·내 위치로 카메라를 옮길 때의 줌 레벨 */
 private const val ZOOM_PLACE = 17
+
+/** 경로 카드가 새 경로로 다시 그려질 때까지 기다리는 시간 */
+private const val ROUTE_CARD_SETTLE_MILLIS = 150L
+
+/**
+ * 지도를 가리는 UI의 지금 크기(dp). MapScreen이 그릴 때 재고, 카메라를 맞출 때 MapRoute가 읽는다.
+ * 다시 그릴 필요가 없는 값이라 State가 아니다.
+ */
+class MapChromeMetrics {
+    /** 화면 위에서 상단 UI(검색창·칩 또는 길찾기 카드·탭) 아래 끝까지 */
+    var topCoveredDp = 0f
+    var screenHeightDp = 0f
+    /** 화면 아래에서 경로 카드 윗변까지 */
+    var routeCardHeightDp = 0f
+
+    /** 지점이 위 UI와 아래 UI([bottomDp]) 사이에 들어오게 하는 여백 */
+    fun insets(bottomDp: Float) = MapInsets(topDp = topCoveredDp, bottomDp = bottomDp)
+
+    /** 중간 높이로 멈춘 하단 시트가 가리는 높이. 시트는 펼쳐지는 중일 수 있어 지금 높이가 아니라 멈출 높이를 쓴다. */
+    val mediumSheetDp: Float get() = screenHeightDp * SHEET_MEDIUM_FRACTION
+}
 
 /**
  * Route = BlocProvider + BlocListener 역할.
@@ -107,6 +132,7 @@ fun MapRoute(
     val lifecycleOwner = LocalLifecycleOwner.current
     val snackbarHostState = remember { SnackbarHostState() }
     val mapState = rememberKakaoMapState()
+    val chrome = remember { MapChromeMetrics() }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -181,7 +207,9 @@ fun MapRoute(
             launch {
                 searchViewModel.effects.collect { effect ->
                     when (effect) {
-                        is PlaceSearchEffect.FitCamera -> cameraAwayFromMe { mapState.fitCamera(effect.points, MapFitLayout.SEARCH_RESULTS) }
+                        is PlaceSearchEffect.FitCamera -> cameraAwayFromMe {
+                            mapState.fitCamera(effect.points, chrome.insets(bottomDp = chrome.mediumSheetDp))
+                        }
                         is PlaceSearchEffect.Focus -> cameraAwayFromMe { mapState.moveCamera(effect.point, ZOOM_PLACE) }
                         is PlaceSearchEffect.ShowError -> showMessage(resources.getString(effect.error.messageRes()))
                     }
@@ -192,8 +220,11 @@ fun MapRoute(
                     when (effect) {
                         is RouteEffect.FitCamera -> {
                             val transit = routeViewModel.uiState.value.selectedMode == TravelMode.TRANSIT
-                            cameraAwayFromMe {
-                                mapState.fitCamera(effect.points, if (transit) MapFitLayout.ROUTE_WITH_SHEET else MapFitLayout.ROUTE)
+                            // 아래 경로 카드는 이 effect와 같은 상태 변경으로 이제 막 바뀐다. 다시 그려진 뒤의 실제 높이로 맞춘다.
+                            launch {
+                                if (!transit) delay(ROUTE_CARD_SETTLE_MILLIS)
+                                val bottom = if (transit) chrome.mediumSheetDp else chrome.routeCardHeightDp
+                                cameraAwayFromMe { mapState.fitCamera(effect.points, chrome.insets(bottomDp = bottom)) }
                             }
                         }
                         is RouteEffect.ShowError -> showMessage(resources.getString(effect.error.messageRes()))
@@ -229,6 +260,7 @@ fun MapRoute(
         search = search,
         route = route,
         mapState = mapState,
+        chrome = chrome,
         snackbarHostState = snackbarHostState,
         actions = MapScreenActions(
             onMyLocationClick = mapViewModel::onMyLocationClick,
@@ -295,6 +327,7 @@ fun MapScreen(
     mapState: KakaoMapState,
     snackbarHostState: SnackbarHostState,
     actions: MapScreenActions,
+    chrome: MapChromeMetrics = remember { MapChromeMetrics() },
 ) {
     val density = LocalDensity.current
     var sheetDetent by rememberSaveable { mutableStateOf(SheetDetent.MEDIUM) }
@@ -330,13 +363,17 @@ fun MapScreen(
         else -> navigationBarBottom + 24.dp
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().onSizeChanged { chrome.screenHeightDp = it.height / density.density }) {
         // 지도는 상태바·내비게이션바 아래까지 꽉 채운다.
         KakaoMapView(state = mapState, modifier = Modifier.fillMaxSize())
 
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.statusBarsPadding().padding(top = 8.dp),
+            modifier = Modifier
+                .statusBarsPadding()
+                .padding(top = 8.dp)
+                // 카메라를 맞출 때 위쪽 여백: 화면 맨 위부터 이 UI 아래 끝까지
+                .onGloballyPositioned { chrome.topCoveredDp = it.boundsInRoot().bottom / density.density },
         ) {
             val destination = route.destination
             if (destination != null) {
@@ -410,7 +447,10 @@ fun MapScreen(
             RouteSummaryCard(
                 mode = route.selectedMode,
                 result = route.selectedResult,
-                modifier = Modifier.onSizeChanged { routeCardHeight = with(density) { it.height.toDp() } },
+                modifier = Modifier.onSizeChanged {
+                    routeCardHeight = with(density) { it.height.toDp() }
+                    chrome.routeCardHeightDp = it.height / density.density
+                },
             )
         }
 

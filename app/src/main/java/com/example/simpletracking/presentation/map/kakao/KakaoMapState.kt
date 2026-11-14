@@ -9,8 +9,8 @@ import androidx.compose.runtime.setValue
 import com.example.simpletracking.domain.model.GeoPoint
 import com.example.simpletracking.domain.model.UserLocation
 import com.example.simpletracking.presentation.map.FollowMode
-import com.example.simpletracking.presentation.map.MapFitLayout
 import com.example.simpletracking.presentation.map.MapGesture
+import com.example.simpletracking.presentation.map.MapInsets
 import com.example.simpletracking.presentation.map.PlaceMarker
 import com.example.simpletracking.presentation.map.RouteOverlay
 
@@ -18,7 +18,7 @@ import com.example.simpletracking.presentation.map.RouteOverlay
 interface MapCommands {
     /** [animated]가 false면 애니메이션 없이 바로 놓는다(내 위치로 갈 때). */
     fun moveCamera(target: GeoPoint, zoomLevel: Int, animated: Boolean = true)
-    fun fitCamera(points: List<GeoPoint>, layout: MapFitLayout)
+    fun fitCamera(points: List<GeoPoint>, insets: MapInsets)
     fun updateMyLocation(location: UserLocation?)
     fun showPlaceMarkers(markers: List<PlaceMarker>, selectedId: String?)
     /** 경로 선과 출발·도착 마커. null이면 지운다. */
@@ -61,7 +61,7 @@ class KakaoMapState {
 
     private sealed interface PendingCamera {
         data class Move(val target: GeoPoint, val zoomLevel: Int, val animated: Boolean) : PendingCamera
-        data class Fit(val points: List<GeoPoint>, val layout: MapFitLayout) : PendingCamera
+        data class Fit(val points: List<GeoPoint>, val insets: MapInsets) : PendingCamera
     }
 
     fun moveCamera(target: GeoPoint, zoomLevel: Int, animated: Boolean = true) {
@@ -69,9 +69,9 @@ class KakaoMapState {
         map?.moveCamera(target, zoomLevel, animated) ?: run { pendingCamera = PendingCamera.Move(target, zoomLevel, animated) }
     }
 
-    fun fitCamera(points: List<GeoPoint>, layout: MapFitLayout) {
+    fun fitCamera(points: List<GeoPoint>, insets: MapInsets) {
         if (points.isEmpty()) return
-        map?.fitCamera(points, layout) ?: run { pendingCamera = PendingCamera.Fit(points, layout) }
+        map?.fitCamera(points, insets) ?: run { pendingCamera = PendingCamera.Fit(points, insets) }
     }
 
     fun updateMyLocation(location: UserLocation?) {
@@ -106,7 +106,7 @@ class KakaoMapState {
         map.showRoute(routeOverlay)
         when (val pending = pendingCamera) {
             is PendingCamera.Move -> map.moveCamera(pending.target, pending.zoomLevel, pending.animated)
-            is PendingCamera.Fit -> map.fitCamera(pending.points, pending.layout)
+            is PendingCamera.Fit -> map.fitCamera(pending.points, pending.insets)
             null -> Unit
         }
         pendingCamera = null

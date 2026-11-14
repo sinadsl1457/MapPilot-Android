@@ -61,7 +61,7 @@ fun MapBottomSheet(
             with(density) {
                 DraggableAnchors {
                     SheetDetent.COLLAPSED at containerHeight - COLLAPSED_HEIGHT.toPx()
-                    SheetDetent.MEDIUM at containerHeight * (1 - MEDIUM_FRACTION)
+                    SheetDetent.MEDIUM at containerHeight * (1 - SHEET_MEDIUM_FRACTION)
                     SheetDetent.LARGE at topReservedHeight.toPx()
                 }
             }
@@ -118,4 +118,5 @@ fun MapBottomSheet(
 
 /** 장소 상세(이름·주소·전화·길찾기 버튼)가 다 보이는 높이 */
 private val COLLAPSED_HEIGHT = 280.dp
-private const val MEDIUM_FRACTION = 0.45f
+/** 중간 높이 = 화면 높이의 이 비율. 카메라 여백 계산(MapScreen)도 같은 값을 쓴다. */
+const val SHEET_MEDIUM_FRACTION = 0.45f

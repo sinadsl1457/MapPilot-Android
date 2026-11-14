@@ -5,7 +5,7 @@ import com.example.simpletracking.presentation.map.MapGesture
 import com.example.simpletracking.presentation.map.FollowMode
 import com.example.simpletracking.domain.model.GeoPoint
 import com.example.simpletracking.domain.model.UserLocation
-import com.example.simpletracking.presentation.map.MapFitLayout
+import com.example.simpletracking.presentation.map.MapInsets
 import com.example.simpletracking.presentation.map.PlaceMarker
 import com.example.simpletracking.presentation.map.RouteLine
 import com.example.simpletracking.presentation.map.RouteOverlay
@@ -28,7 +28,7 @@ class KakaoMapStateTest {
         }
         val followModes = mutableListOf<FollowMode>()
         override fun setFollowMode(mode: FollowMode) { followModes += mode }
-        override fun fitCamera(points: List<GeoPoint>, layout: MapFitLayout) { calls += "fit ${points.size} $layout" }
+        override fun fitCamera(points: List<GeoPoint>, insets: MapInsets) { calls += "fit ${points.size} ${insets.topDp.toInt()}/${insets.bottomDp.toInt()}" }
         override fun updateMyLocation(location: UserLocation?) { lastLocation = location }
         override fun showPlaceMarkers(markers: List<PlaceMarker>, selectedId: String?) { lastMarkers = markers }
         override fun showRoute(overlay: RouteOverlay?) { lastRoute = overlay }
@@ -60,18 +60,18 @@ class KakaoMapStateTest {
     @Test
     fun `준비 전에 여러 번 오면 마지막 명령만 실행한다`() {
         state.moveCamera(Fixtures.cityHall, 17)
-        state.fitCamera(listOf(Fixtures.cityHall, Fixtures.gangnamStation), MapFitLayout.ROUTE)
+        state.fitCamera(listOf(Fixtures.cityHall, Fixtures.gangnamStation), MapInsets(100f, 200f))
 
         state.attach(map)
 
-        assertEquals(listOf("fit 2 ROUTE"), map.calls)
+        assertEquals(listOf("fit 2 100/200"), map.calls)
     }
 
     @Test
     fun `맞출 지점이 없으면 무시한다`() {
         state.attach(map)
 
-        state.fitCamera(emptyList(), MapFitLayout.SEARCH_RESULTS)
+        state.fitCamera(emptyList(), MapInsets(100f, 200f))
 
         assertEquals(emptyList<String>(), map.calls)
     }

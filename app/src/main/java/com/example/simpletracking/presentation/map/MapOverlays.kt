@@ -27,12 +27,8 @@ data class RouteOverlay(
     val allPoints: List<GeoPoint> get() = listOf(start) + lines.flatMap { it.points } + end
 }
 
-/** 카메라를 여러 지점에 맞출 때 화면의 어떤 부분이 UI에 가려지는지 */
-enum class MapFitLayout {
-    /** 위: 검색창 + 칩, 아래: 큰 하단 시트 */
-    SEARCH_RESULTS,
-    /** 위: 출발·도착 카드와 탭, 아래: 작은 요약 카드 */
-    ROUTE,
-    /** 위: 출발·도착 카드와 탭, 아래: 큰 하단 시트(대중교통 목록) */
-    ROUTE_WITH_SHEET,
-}
+/**
+ * 카메라를 여러 지점에 맞출 때 앱 UI가 지도를 가리는 높이(dp). 지점은 그 안쪽에 보이게 맞춘다.
+ * 위: 상단 UI(검색창·칩 또는 길찾기 카드·탭), 아래: 시트가 멈출 높이 또는 경로 카드 높이.
+ */
+data class MapInsets(val topDp: Float, val bottomDp: Float)

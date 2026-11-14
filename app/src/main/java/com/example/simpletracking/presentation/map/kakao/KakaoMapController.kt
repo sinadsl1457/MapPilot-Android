@@ -12,8 +12,8 @@ import com.example.simpletracking.R
 import com.example.simpletracking.domain.model.GeoPoint
 import com.example.simpletracking.domain.model.UserLocation
 import com.example.simpletracking.presentation.map.FollowMode
-import com.example.simpletracking.presentation.map.MapFitLayout
 import com.example.simpletracking.presentation.map.MapGesture
+import com.example.simpletracking.presentation.map.MapInsets
 import com.example.simpletracking.presentation.map.PlaceMarker
 import com.example.simpletracking.presentation.map.RouteLine
 import com.example.simpletracking.presentation.map.RouteOverlay
@@ -201,7 +201,12 @@ internal class KakaoMapController(
         }
     }
 
+    /** fitCamera가 여백을 남겼으면 비워 화면 한가운데 기준으로 되돌린다. */
     override fun moveCamera(target: GeoPoint, zoomLevel: Int, animated: Boolean) {
+        if (hasFitPadding) {
+            map.setPadding(0, 0, 0, 0)
+            hasFitPadding = false
+        }
         val update = CameraUpdateFactory.newCenterPosition(target.toLatLng(), zoomLevel)
         if (animated) {
             map.moveCamera(update, CameraAnimation.from(CAMERA_MOVE_MILLIS, true, true))
@@ -210,14 +215,22 @@ internal class KakaoMapController(
         }
     }
 
-    /** 지점이 모두 보이게 맞춘다. 위·아래 UI가 지도를 가리는 만큼 영역을 넓혀 잡는다(fitCorners). */
-    override fun fitCamera(points: List<GeoPoint>, layout: MapFitLayout) {
+    /** fitCamera가 SDK 여백을 넣어 둔 상태인지. moveCamera가 있을 때만 비운다. */
+    private var hasFitPadding = false
+
+    /**
+     * 지점이 모두 [insets] 안쪽(앱 UI에 가리지 않는 영역)에 보이게 맞춘다.
+     * SDK 여백(setPadding)에 UI가 가리는 만큼을 넣으면 fitMapPoints가 그 안쪽에 맞춘다.
+     * 여백은 다음 moveCamera가 비울 때까지 남는다(그동안 내 위치 따라가기도 보이는 영역 기준).
+     * 예전 방식(화면 비율로 위·아래를 늘림)은 옆으로 긴 경로에서 출발·도착이 탭·시트에 가려졌다.
+     */
+    override fun fitCamera(points: List<GeoPoint>, insets: MapInsets) {
         if (points.isEmpty()) return
-        // 한 점이어도 화면 가운데가 아니라 UI에 가리지 않는 곳에 오도록 같은 계산을 쓴다(최소 범위가 있어 과하게 확대되지 않는다).
-        val (southWest, northEast) = fitCorners(points, layout.insets)
-        val corners = arrayOf(southWest.toLatLng(), northEast.toLatLng())
+        fun px(dp: Float) = (dp * density).toInt()
+        map.setPadding(0, px(insets.topDp), 0, px(insets.bottomDp))
+        hasFitPadding = true
         map.moveCamera(
-            CameraUpdateFactory.fitMapPoints(corners, 0, MAX_FIT_ZOOM),
+            CameraUpdateFactory.fitMapPoints(points.map { it.toLatLng() }.toTypedArray(), px(FIT_EDGE_DP), MAX_FIT_ZOOM),
             CameraAnimation.from(CAMERA_MOVE_MILLIS, true, true),
         )
     }
@@ -416,6 +429,8 @@ internal class KakaoMapController(
         const val CONE_ROTATE_MILLIS = 150
         const val CAMERA_MOVE_MILLIS = 300
         const val MAX_FIT_ZOOM = 17
+        /** 보이는 영역 안에서도 지점이 가장자리에 붙지 않게 남기는 여백(dp). 출발·도착 말풍선이 잘리지 않을 만큼. */
+        const val FIT_EDGE_DP = 48f
 
         /** 선택된 마커가 다른 마커에 가려지지 않게 rank를 가장 높게 준다. 번호가 작을수록 위에 그린다. */
         fun placeRank(number: Int, selected: Boolean): Long = if (selected) 1_000L else 1_000L - number
