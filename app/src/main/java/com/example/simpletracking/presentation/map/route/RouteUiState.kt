@@ -59,7 +59,8 @@ data class RouteUiState(
                 }
                 is ModeResult.Transit -> {
                     val route = selectedTransitRoute ?: return null
-                    val lines = route.legs.map { RouteLine(it.kind.toLineKind(), it.points) }.toMutableList()
+                    // 지하철은 노선 색(예: 2호선 초록)으로 그린다. 모르는 노선이면 기본 색.
+                    val lines = route.legs.map { RouteLine(it.kind.toLineKind(), it.points, SubwayLineColors.rgb(it)) }.toMutableList()
                     // 대중교통 응답은 첫 정류장부터 시작하므로, 출발지·도착지와 이어지는 도보 구간을 직선으로 덧붙인다.
                     lines.firstOrNull()?.points?.firstOrNull()?.takeIf { it != origin }?.let {
                         lines.add(0, RouteLine(RouteLine.Kind.WALK, listOf(origin, it)))

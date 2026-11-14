@@ -138,7 +138,7 @@ private fun TransitSegmentBar(legs: List<TransitLeg>) {
         Row(horizontalArrangement = Arrangement.spacedBy(spacing)) {
             legs.forEach { leg ->
                 val width = maxOf(14.dp, available * (leg.durationSeconds.toFloat() / total))
-                val color = RouteColors.leg(leg.kind).let { if (leg.kind == TransitLeg.Kind.WALK) it.copy(alpha = 0.45f) else it }
+                val color = RouteColors.leg(leg).let { if (leg.kind == TransitLeg.Kind.WALK) it.copy(alpha = 0.45f) else it }
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.width(width).fillMaxHeight().background(color, RoundedCornerShape(50)),
@@ -161,7 +161,7 @@ private fun TransitSegmentBar(legs: List<TransitLeg>) {
 @Composable
 private fun TransitLegLine(leg: TransitLeg) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(22.dp).background(RouteColors.leg(leg.kind), CircleShape)) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(22.dp).background(RouteColors.leg(leg), CircleShape)) {
             Icon(leg.kind.icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
         }
         Text(

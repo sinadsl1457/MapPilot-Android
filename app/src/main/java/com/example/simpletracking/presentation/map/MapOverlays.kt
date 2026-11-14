@@ -14,6 +14,8 @@ data class PlaceMarker(
 data class RouteLine(
     val kind: Kind,
     val points: List<GeoPoint>,
+    /** 종류 기본색 대신 쓸 색(0xRRGGBB). 지하철 노선 색(예: 2호선 초록). */
+    val rgb: Int? = null,
 ) {
     enum class Kind { CAR, WALK, BUS, SUBWAY }
 }

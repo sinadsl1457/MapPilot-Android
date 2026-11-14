@@ -20,6 +20,9 @@ object RouteColors {
         RouteLine.Kind.SUBWAY -> Subway
     }
 
+    /** 구간 색. 지하철은 노선 색, 모르는 노선이면 종류 기본색. 지도 경로선과 같은 색이다. */
+    fun leg(leg: TransitLeg): Color = SubwayLineColors.rgb(leg)?.let { Color(0xFF000000 or it.toLong()) } ?: leg(leg.kind)
+
     fun leg(kind: TransitLeg.Kind): Color = when (kind) {
         TransitLeg.Kind.WALK -> Walk
         TransitLeg.Kind.BUS -> Bus

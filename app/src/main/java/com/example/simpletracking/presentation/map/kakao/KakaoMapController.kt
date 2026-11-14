@@ -80,6 +80,8 @@ internal class KakaoMapController(
             )
         ) { "Failed to register route style: $kind" }
     }
+    /** 선 색(RGB)별로 등록한 스타일. 예: 2호선 초록 */
+    private val colorRouteStyles = mutableMapOf<Int, RouteLineStylesSet>()
     private val placeStyleCache = mutableMapOf<Pair<Int, Boolean>, LabelStyles>()
 
     private var myLabel: Label? = null
@@ -268,7 +270,7 @@ internal class KakaoMapController(
         if (overlay == null) return
 
         overlay.lines.filter { it.points.size >= 2 }.forEachIndexed { index, line ->
-            val stylesSet = routeStyles.getValue(line.kind)
+            val stylesSet = routeStyle(line)
             val segment = RouteLineSegment.from(line.points.map { it.toLatLng() }).setStyles(stylesSet.getStyles(0))
             routeLayer.addRouteLine(RouteLineOptions.from(segment).setStylesSet(stylesSet).setZOrder(index))
         }
@@ -372,6 +374,21 @@ internal class KakaoMapController(
     }
 
     // endregion
+
+    /** 색이 지정된 선(지하철 노선 색)은 그 색의 스타일을 처음 볼 때 등록한다. */
+    private fun routeStyle(line: RouteLine): RouteLineStylesSet {
+        val rgb = line.rgb ?: return routeStyles.getValue(line.kind)
+        return colorRouteStyles.getOrPut(rgb) {
+            requireNotNull(
+                routeLineManager.addStylesSet(
+                    RouteLineStylesSet.from(
+                        "route_color_${rgb.toString(16)}",
+                        RouteLineStyles.from(RouteLineStyle.from(8f * density, (0xFF shl 24) or rgb, 2 * density, Color.WHITE)),
+                    )
+                )
+            ) { "Failed to register route style: $rgb" }
+        }
+    }
 
     private fun addLabelLayer(id: String, zOrder: Int, clickable: Boolean = false): LabelLayer = requireNotNull(
         labelManager.addLayer(
