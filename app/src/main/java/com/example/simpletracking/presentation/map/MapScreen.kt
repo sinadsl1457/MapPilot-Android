@@ -1,5 +1,10 @@
 package com.example.simpletracking.presentation.map
 
+import com.example.simpletracking.presentation.map.search.titleRes
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.background
 import com.example.simpletracking.presentation.map.route.title
 import com.example.simpletracking.presentation.map.route.rememberRouteFlowState
 import com.example.simpletracking.presentation.map.route.RouteShownBar
@@ -402,6 +407,9 @@ fun MapScreen(
     var sheetDetent by rememberSaveable { mutableStateOf(SheetDetent.MEDIUM) }
     var sheetHeight by remember { mutableStateOf(0.dp) }
     var routeCardHeight by remember { mutableStateOf(0.dp) }
+    var screenHeight by remember { mutableStateOf(0.dp) }
+    /** 화면 맨 위부터 검색창 줄 아래 끝까지. 장소 시트를 끝까지 올리면 여기 바로 아래에서 멈춘다. */
+    var searchRowBottom by remember { mutableStateOf(0.dp) }
 
     val isResultsSheetVisible = search.source != null && !route.isActive
     val myPoint: GeoPoint? = mapUi.myLocation?.point
@@ -425,15 +433,54 @@ fun MapScreen(
 
     // 내 위치 버튼·스낵바는 시트가 있으면 시트 윗변 위에, 없으면 화면 아래에 붙인다.
     val navigationBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val mediumSheetHeight = screenHeight * SHEET_MEDIUM_FRACTION
+    /** 시트가 중간보다 올라와 칩·내 위치 버튼 자리를 덮는 중(목록을 보는 중). */
+    val isSheetAboveMedium = isResultsSheetVisible && sheetHeight > mediumSheetHeight + 1.dp
+    // 시트 위치는 중간 높이까지만 따른다. 시트를 끝까지 올리면 버튼은 숨긴다(화면 위로 밀려 올라가지 않게).
     val floatingBottom: Dp = when {
         route.isShowingRoute -> routeCardHeight + 12.dp
-        isResultsSheetVisible -> sheetHeight + 12.dp
+        isResultsSheetVisible -> minOf(sheetHeight, mediumSheetHeight) + 12.dp
         else -> navigationBarBottom + 24.dp
     }
 
-    Box(Modifier.fillMaxSize().onSizeChanged { chrome.screenHeightDp = it.height / density.density }) {
+    Box(
+        Modifier.fillMaxSize().onSizeChanged {
+            chrome.screenHeightDp = it.height / density.density
+            screenHeight = with(density) { it.height.toDp() }
+        },
+    ) {
         // 지도는 상태바·내비게이션바 아래까지 꽉 채운다.
         KakaoMapView(state = mapState, modifier = Modifier.fillMaxSize())
+
+        // 장소 시트는 위 UI보다 먼저(아래에) 그린다. 끝까지 올려도 검색창은 시트 위에 보인다(네이버 지도 방식).
+        AnimatedVisibility(
+            visible = isResultsSheetVisible,
+            enter = slideInVertically { it },
+            exit = slideOutVertically { it },
+        ) {
+            MapBottomSheet(
+                detent = sheetDetent,
+                onDetentChange = { sheetDetent = it },
+                onVisibleHeightChange = { sheetHeight = it },
+                topReservedHeight = searchRowBottom + 8.dp,
+                header = { PlaceResultsHeader(search) },
+            ) {
+                Column(Modifier.navigationBarsPadding()) {
+                    PlaceResultsContent(
+                        state = search,
+                        myLocation = myPoint,
+                        onSelect = actions.onSelectPlace,
+                        onBackToList = actions.onBackToList,
+                        onRoute = actions.onStartRoute,
+                    )
+                }
+            }
+        }
+
+        // 목록을 중간보다 올리면 검색창 뒤(상태 표시줄까지)를 배경색으로 채워 지도가 비치지 않게 한다.
+        AnimatedVisibility(visible = isSheetAboveMedium, enter = fadeIn(), exit = fadeOut()) {
+            Box(Modifier.fillMaxWidth().height(searchRowBottom + 8.dp).background(MaterialTheme.colorScheme.surface))
+        }
 
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -470,9 +517,15 @@ fun MapScreen(
                     )
                 }
                 else -> {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .onGloballyPositioned { searchRowBottom = with(density) { it.boundsInRoot().bottom.toDp() } },
+                    ) {
+                        // 카테고리 결과면 검색창에 카테고리 이름("카페")을 보인다.
                         MapSearchBar(
-                            keyword = search.keyword,
+                            keyword = search.keyword ?: search.selectedCategory?.let { stringResource(it.titleRes) },
                             showsClear = isResultsSheetVisible,
                             onClick = actions.onSearchBarClick,
                             onClear = actions.onClearResults,
@@ -481,30 +534,10 @@ fun MapScreen(
                         Spacer(Modifier.width(8.dp))
                         DirectionsButton(onClick = actions.onOpenPlanner)
                     }
-                    CategoryChips(selected = search.selectedCategory, onClick = actions.onCategoryClick)
-                }
-            }
-        }
-
-        AnimatedVisibility(
-            visible = isResultsSheetVisible,
-            enter = slideInVertically { it },
-            exit = slideOutVertically { it },
-        ) {
-            MapBottomSheet(
-                detent = sheetDetent,
-                onDetentChange = { sheetDetent = it },
-                onVisibleHeightChange = { sheetHeight = it },
-                header = { PlaceResultsHeader(search) },
-            ) {
-                Column(Modifier.navigationBarsPadding()) {
-                    PlaceResultsContent(
-                        state = search,
-                        myLocation = myPoint,
-                        onSelect = actions.onSelectPlace,
-                        onBackToList = actions.onBackToList,
-                        onRoute = actions.onStartRoute,
-                    )
+                    // 목록이 칩을 덮을 만큼 올라오면 숨긴다(검색창 위에 그려지므로 그대로 두면 목록 위에 뜬다).
+                    AnimatedVisibility(visible = !isSheetAboveMedium, enter = fadeIn(), exit = fadeOut()) {
+                        CategoryChips(selected = search.selectedCategory, onClick = actions.onCategoryClick)
+                    }
                 }
             }
         }
@@ -526,13 +559,19 @@ fun MapScreen(
             )
         }
 
-        MyLocationButton(
-            hasPermission = mapUi.hasLocationPermission,
-            followMode = mapUi.followMode,
-            isCameraOnMyLocation = mapUi.isCameraOnMyLocation,
-            onClick = actions.onMyLocationClick,
+        AnimatedVisibility(
+            visible = !isSheetAboveMedium,
+            enter = fadeIn(),
+            exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = floatingBottom),
-        )
+        ) {
+            MyLocationButton(
+                hasPermission = mapUi.hasLocationPermission,
+                followMode = mapUi.followMode,
+                isCameraOnMyLocation = mapUi.isCameraOnMyLocation,
+                onClick = actions.onMyLocationClick,
+            )
+        }
 
         SnackbarHost(
             hostState = snackbarHostState,
