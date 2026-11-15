@@ -7,7 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.example.simpletracking.presentation.map.MapRoute
-import com.example.simpletracking.presentation.theme.SimpleTrackingTheme
+import com.example.simpletracking.presentation.theme.MapPilotTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
         )
         setContent {
-            SimpleTrackingTheme {
+            MapPilotTheme {
                 MapRoute()
             }
         }

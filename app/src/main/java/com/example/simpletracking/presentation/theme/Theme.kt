@@ -32,6 +32,6 @@ private val LightColors = lightColorScheme(
 )
 
 @Composable
-fun SimpleTrackingTheme(content: @Composable () -> Unit) {
+fun MapPilotTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = LightColors, typography = Typography, content = content)
 }

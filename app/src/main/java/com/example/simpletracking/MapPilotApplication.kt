@@ -10,7 +10,7 @@ import dagger.hilt.android.HiltAndroidApp
  * Flutter에서 main()의 configureDependencies()(get_it + injectable)를 부르는 자리에 해당한다.
  */
 @HiltAndroidApp
-class SimpleTrackingApplication : Application() {
+class MapPilotApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
@@ -25,6 +25,6 @@ class SimpleTrackingApplication : Application() {
     }
 
     private companion object {
-        const val TAG = "SimpleTracking"
+        const val TAG = "MapPilot"
     }
 }

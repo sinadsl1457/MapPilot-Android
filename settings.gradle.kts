@@ -23,6 +23,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "simpleTracking"
+rootProject.name = "MapPilot"
 include(":app")
  
